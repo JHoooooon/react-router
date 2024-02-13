@@ -2,6 +2,8 @@
 
 `Route` 에서 제공하는 각 기능을 살펴본다
 
+---
+
 ## 🛣️ Route
 
 `Routes` 는 어쩌면 `React Route` 앱에서 가장 중요한 부분일지도 모른다
@@ -504,3 +506,226 @@ export function Component() {
 이에 대해 더 자세히 알고 싶다면 `lazy` 문서를 살펴보라고 한다
 
 > 📎 이는 나중에 추가적으로 작성할 예정이다
+
+---
+
+<!--  markdownlint-disable-next-line -->
+
+## action
+
+`route action` 은 쓰고, `route loader` 에서 읽는다
+
+`React Router` 는 복잡한 비동기 `UI` 를 추상화하고, 재평가하는 동시에
+간단한 `HTML` 그리고 `HTTP` 를 이용하여 `data` 의 `mutation` 을 실행하기 위한
+방법을 제공한다
+
+이는 현대적 `SPAs` 의 `UX` 동작 및 기능과 함께, `HTML` 과 `HTTP` 의 간단한 멘탈모델을 제공한다.
+
+```tsx
+<Route
+  path="/song/:songId/edit"
+  element={<EditSong />}
+  action={async ({ params, request }) => {
+    let formData = await request.formData();
+    return fakeUpdateSong(params.songId, formData);
+  }}
+  loader={({ params }) => {
+    return fakeGetSong(params.songId);
+  }}
+/>
+```
+
+`action` 은 `route` 에서 `GET` 이 아닌 `submit` 을 보낼때 마다 호출된다
+
+> `POST`, `PUT`, `PATCH`, `DELETE` 에서 호출된다
+
+```tsx
+// forms
+<Form method="post" action="/songs" />;
+<fetcher.Form method="put" action="/songs/123/edit" />;
+
+// imperative submissions
+let submit = useSubmit();
+submit(data, {
+  method: "delete",
+  action: "/songs/123",
+});
+fetcher.submit(data, {
+  method: "patch",
+  action: "/songs/123/edit",
+});
+```
+
+### params
+
+`Route` 의 `params` 는 `dynamic segments` 로 부터 구문분석되며,
+`action` 에 전달된다
+
+이는 어떤 리소스를 변경할지 알아내는데 유용하다
+
+```tsx
+<Route
+  path="/projects/:projectId/delete"
+  action={({ params }) => {
+    return fakeDeleteProject(params.projectId);
+  }}
+/>
+```
+
+### request
+
+이는 `route` 로 전송되는 `Fetch Request` 인스턴스이다.
+대부분의 경우 `request` 로 부터 `FormData` 를 구문분석하는데 사용된다
+
+```tsx
+<Route
+  action={async ({ request }) => {
+    let formData = await request.formData();
+    // ...
+  }}
+/>
+```
+
+처음에는 액션에서 `request` 를 받는것이 이상해보이겠지만, 이런 코드를
+작성해 본적이 있다면 생각이 달라진다
+
+```tsx
+<form
+  onSubmit={(event) => {
+    event.preventDefault();
+    // ...
+  }}
+/>
+```
+
+`Javascript` 가 없이, `HTML` 과 `HTTP` 웹 서버는 기본값으로 `event` 를
+`prevent` 하며 실제로 꽤나 훌륭하다고 설명한다
+
+> 위 설정값인 `event.preventDefault` 가 기본값이라는 이라고 말하는듯하다
+
+브라우저는 `FormData` 안에서 `data` 를 직렬화할것이고, 서버로 새로운
+요청의 `body` 를 보낸다
+
+위의 코드처럼 `React Router` `<Form>` 은 해당 `request` 를 보내는
+브라우저를 `prevent` 고, 대신 `route action` 으로 `request` 를 보낸다
+
+이는 `HTML` 과 `HTTP` 모델을 심플하게 만들어 굉장히 동적인 `web app` 을
+가능하게 한다
+
+`formData` 안의 값은 `form` `submit` 으로 부터 자동적으로 직렬화되므로
+`inputs` 에 `name` 이 꼭 필요하다는 것을 기억해야 한다
+
+```tsx
+<Form method="post">
+  <input name="songTitle" />
+  <textarea name="lyrics" />
+  <button type="submit">Save</button>
+</Form>;
+
+// accessed by the same names
+formData.get("songTitle");
+formData.get("lyrics");
+```
+
+### Opt-in serialization types
+
+`useSubmit` 을 사용할때, `encType: "application/json"` 또는
+`encType: "text/plain"` 을 전달하여 `paylaod` 를
+`request.json()` 또는 `request.text()` 로 직렬화할수도 있다.
+
+### Throwing in Actions
+
+`action` 내에서 현재 `call stack` 을 벗어나려면 `throw` 를
+사용할 수 있다
+
+> `call stack` 에서 벗어난다는 것은 현재 실행중인 코드를 중단한다는
+> 의미이다
+
+`React Router` 는 `error` 경로에서 다시 시작된다
+
+> 이는 `route` 에 설정된 `errorElement` 및 `ErrorBoundary` 를
+> 사용하여 처리된다는 뜻이다
+
+```tsx
+<Route
+  action={async ({ params, request }) => {
+    const res = await fetch(`/api/properties/${params.id}`, {
+      method: "put",
+      body: await request.formData(),
+    });
+    if (!res.ok) throw res;
+    return { ok: true };
+  }}
+/>
+```
+
+### 🎬 Handling multiple actions per route
+
+꽤 자주 등장하는 공통적인 질문은 다음과 같다
+
+**_" 만약, `action` 에서 다른 동작을 하는 여러 `handler` 가 필요하면 어떻게 하나요?"_**
+
+이는 여러 방법들로 해결할수 있지만, 일반적으로 가장 간단한 것은
+`<button type="submit">` 에 `name`/`value` 에 추가하는 것이다
+
+그리고 이는 코드 실행하면 해당하는 `action` 을 가리킨다
+
+코드를 보도록 하자
+
+```tsx
+async function action({ request }) {
+  let formData = await request.formData();
+  let intent = formData.get("intent");
+
+  if (intent === "edit") {
+    await editSong(formData);
+    return { ok: true };
+  }
+
+  if (intent === "add") {
+    await addSong(formData);
+    return { ok: true };
+  }
+
+  throw json({ message: "Invalid intent" }, { status: 400 });
+}
+
+function Component() {
+  let song = useLoaderData();
+
+  // When the song exists, show an edit form
+  if (song) {
+    return (
+      <Form method="post">
+        <p>Edit song lyrics:</p>
+        {/* Edit song inputs */}
+        <button type="submit" name="intent" value="edit">
+          Edit
+        </button>
+      </Form>
+    );
+  }
+
+  // Otherwise show a form to add a new song
+  return (
+    <Form method="post">
+      <p>Add new lyrics:</p>
+      {/* Add song inputs */}
+      <button type="submit" name="intent" value="add">
+        Add
+      </button>
+    </Form>
+  );
+}
+```
+
+만약 `button` 에서 `name` / `value` 을 사용한 경우, 위에 주석처리된
+`input` 을 보낼것이다.
+
+그리고 위의 경우처럼 `intend` 이름을 사용해도 되고, `<Form method>` `prop` 을
+통해 다른 `HTTP` 메서드를 `submit` 해도 된다
+
+> `<Form method>` 의 `props` 는 다음과 같다
+> `POST` 는 `add`, `PUT` / `PATCH` 는 `edit`, `DELETE` 는 제거
+>
+> 이러한 `Form method` 를 식별해서 다른 처리가 가능하다고 하는것이다
