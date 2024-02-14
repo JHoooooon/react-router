@@ -1381,6 +1381,9 @@ interface ShouldRevalidateFunctionArgs {
 이 기능을 사용하면 `optimization` 으로 `route loader` 에 대해 재검증을
 거부할 수 있다
 
+> `React Router` 에서 `Revalidation` 은 **컴포넌트가 다시 렌더링될 때
+> 데이터를 새롭게 적용** 하는 기능이다
+
 `data` 재검증 되는 갖가지 사례가 있으며, `UI` 를 `data` 와 자동으로
 동기화 한다
 
@@ -1444,4 +1447,4 @@ interface ShouldRevalidateFunctionArgs {
 이미 로드되었고, 현제 렌더링되었으며, 새 `URL` 에서 계속 렌더링될 데이터만
 해당된다.
 
-새 `URL` 의 새로운 `route` 및 `fetcher` 에 대한 데이터는 항상 처음에 가져온다
+새로운 `URL` 의 새로운 `route` 및 `fetcher` 에 대한 데이터는 항상 처음에 가져온다
