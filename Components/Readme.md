@@ -47,7 +47,7 @@ async function loader() {
 이러한 방식으로, 사용한 `loader` 의 값을 받을때, 이 컴포넌트를 사용한다
 
 이 `<Await>` 컴포넌트는 `fallback` `UI` 를 활성화하기 위해
-<React.Suspense>`또는`<React.SuspenseList>` 내부에서 렌더링해야 한다
+`<React.Suspense>` 또는 `<React.SuspenseList>` 내부에서 렌더링해야 한다
 
 `<Await>` 은 `promise` 를 받아 결과값이 `resolve` 될때까지 `fallback UI` 를
 보여준다
@@ -1313,3 +1313,218 @@ function EditContact() {
 기본 `React.startTransition` 대신 `ReactDOM.flushSync` 호출에서
 페이지 이동에 대한 초기 상태 업데이트를 래핑하도록 `React Route DOM` 에
 지시한다
+
+---
+
+## `<Outlet>`
+
+타입은 다음과 같다
+
+```tsx
+interface OutletProps {
+  context?: unknown;
+}
+declare function Outlet(props: OutletProps): React.ReactElement | null;
+```
+
+`<Outlet>` 은 `child route elements` 를 렌더링하기 위해
+`parent route elements` 안에 사용된다
+
+이는 `child routes` 를 렌더링될때 중첩된 `UI` 가 표시될수 있다
+만약, `parent route` 가 정확하게 `child route` 의 경로와 매칭된다면,
+`child index route` 가 렌더링 되고, `index route` 가 없다면 아무것도
+렌더링되지 않는다
+
+> `index route` 는 색인된 경로를 말하며, 이는 `child route elements` 를
+> 뜻하는듯 하다.
+>
+> 이 예시에서, 정확히 일치되는 `child` 경로를 가진다면,
+> 해당 `child` 경로를 렌더링하지만, 그렇지 않고 `parent` 경로를 렌더링한다면
+> `null` 을 렌더링한다는 이야기다.
+
+```tsx
+function Dashboard() {
+  return (
+    <div>
+      <h1>Dashboard</h1>
+
+      {/* This element will render either <DashboardMessages> when the URL is
+          "/messages", <DashboardTasks> at "/tasks", or null if it is "/"
+
+          이 `element` 는 "/messages" 일때 <DashboardMessages> 를,
+          "/tasks" 이면 <DashboardTasks> 또는 "/" 이면 null 중 하나를 렌더링한다
+      */}
+      <Outlet />
+    </div>
+  );
+}
+
+function App() {
+  return (
+    <Routes>
+      <Route path="/" element={<Dashboard />}>
+        <Route
+          path="messages"
+          element={<DashboardMessages />}
+        />
+        <Route path="tasks" element={<DashboardTasks />} />
+      </Route>
+    </Routes>
+  );
+```
+
+---
+
+## `<Routes>`
+
+이는 컴포넌트를 중첩구조로 `route` 를 선언하여 코드를 더 읽기 쉽고
+관리하기 쉽게 만들 수 있다.
+
+`location` 이 변경될때마다, `<Routes>` 는 모든 `child routes` 를 살펴보고
+가장 일치하는 `child routes` 를 렌더링한다.
+
+```tsx
+<Routes>
+  <Route path="/" element={<Dashboard />}>
+    <Route path="messages" element={<DashboardMessages />} />
+    <Route path="tasks" element={<DashboardTasks />} />
+  </Route>
+  <Route path="about" element={<AboutPage />} />
+</Routes>
+```
+
+---
+
+## `<ScrollRestoration />`
+
+이 `component` 는 `loader` 가 완료된 이후 위치 변경시, 스크롤을 복원을
+에뮬레이트하여 도메인 전체에서 스크롤의 위치가 원하는 위치로 복원되도록
+한다
+
+```tsx
+function RootRouteComponent() {
+  return (
+    <div>
+      {/* ... */}
+      <ScrollRestoration />
+    </div>
+  );
+}
+```
+
+### `getKey`
+
+이 선택적 `prop` 은 `scroll` 위치를 복원하기 위해 사용되는
+`React Router` 의 `key` 를 정의한다
+
+> 📎 **여기서 부가적인 설명이 들어가야한다.**
+>
+> `location.key` 는 `React Router` 가 **경로가 변할때 마다 새로 생성되는
+> 고유한 식별자** 이다.
+>
+> 이 말인 즉슨, `history stack` 상에 같은 경로가 2번 `push` 되도라도
+> 그 경로마다 다른 `location.key` 가 생성된다는 것이다
+>
+> 이 내용을 모르고 보면 뒤의 내용이 약간 애매해질수 있다..
+
+```tsx
+<ScrollRestoration
+  getKey={(location, matches) => {
+    // default behavior
+    return location.key;
+  }}
+/>
+```
+
+`default` 로 `location.key` 를 사용하며, `client side routing` 없이
+브라우저 기본 동작을 에뮬레이팅한다
+
+사용자는 `stack` 에서 같은 `URL` 을 여러번 페이지이동할수 있으며,
+`stack` 의 각 항목은 복원할 `scroll` 위치를 얻는다
+
+일부 앱에서는 이 동작을 재정의하고 다른 것을 기반으로 위치를 복원할 수
+있다. 4개의 기본 페이지가 있는 소셜 앱을 생각해보자
+
+- "/home"
+- "/message"
+- "/notifications"
+- "/search"
+
+사용자가 `"/home"` 에서 `scroll` 을 약간 아래로 내리고, 메뉴상의
+`"/messages"` 를 클릭한다. 그리고 메뉴상의 `"/home"` 버튼을 다시 누른다
+
+> ⚠️ **`back` 버튼을 누른것이 아니다.**
+
+이는 `history stack` 안에 3개의 항목이 생길것이다
+
+`history stack`
+
+```sh
+1. /home
+2. /messages
+3. /home
+```
+
+기본적으로, `React Router` 는 같은 `URL` 일지라도 `1` 과 `3` 에서 두개의 다른
+`scroll` 위치를 저장한다
+
+이는 사용자가 `2` `->` `3` 에서 페이지이동하면 `1` 에서 스크롤위치를 복원하는 대신에 최상단으로 이동하게 된다
+
+여기서 더 좋은 `UX` 를 제공하기 위해서는, 어디에서 어떻게 오든 상관없이
+(`button` 클릭 혹은 `back` 버튼을 누르는것 같은..) `scroll` 위치는
+유지되어야 한다
+
+이를 위해서 `location.pathname` 같은 `key` 를 사용해야 한다
+
+```tsx
+<ScrollRestoration
+  getKey={(location, matches) => {
+    return location.pathname;
+  }}
+/>
+```
+
+또는 일부 `path` 에 대한 `pathname` 만을 사용하기 원하고, 다른 모든 경우
+에는 일반적인 동작을 하기 원할수 있다.
+
+```tsx
+<ScrollRestoration
+  getKey={(location, matches) => {
+    const paths = ["/home", "/notifications"];
+    return paths.includes(location.pathname)
+      ? // home and notifications restore by pathname
+        // `pathname` 을 `home` 과 `notification` 만 복원기능을 사용한다
+        location.pathname
+      : // everything else by location like the browser
+        location.key;
+  }}
+/>
+```
+
+### `Preventing Scroll Reset`
+
+새로운 페이지 이동 `scroll key` 를 생성할때, 이 `scroll` 위치는 페이지의
+최상단으로 재설정된다.
+
+이러한 동작을 다음으로 막을수 있다
+
+```tsx
+<Link preventScrollReset={true} />
+<Form preventScrollReset={true} />
+```
+
+더 간단하게 말하면, 페이지 이동시 `scroll` 이 `reset` 되는것을 막으며,
+해당 이동한 스크롤만큼 유지하게 해준다
+
+### `Scroll Flashing`
+
+`server side rendering` 을 하지 않는다면, `page` 를 처음 읽어올때
+`scroll flashing` 현상이 발생할수 있다.
+
+이는 `React Router` 가 `data` 를 읽어오고, `JS` 번들을 다운로드하고,
+`page` 전체를 렌더링 하는동안 `scroll` 위치를 복원할수 없기 때문이다
+
+`Server Rendering` 프레임워크는 초기 로드시 완전히 구성된 문서를
+보내주기 때문에 이러한 `scroll flashing` 을 막을수 있다
+
+그래서 `page` 첫 렌더링시 `scroll` 은 복원된다
